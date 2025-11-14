@@ -8,7 +8,7 @@ uploaded_file = st.file_uploader("Učitaj CSV datoteku", type="csv")
 
 if uploaded_file is not None:
     # Učitavanje CSV-a
-    df = pd.read_csv(uploaded_file, decimal=',', skiprows=[1])  # preskoči drugi red koji je '.'
+    df = pd.read_csv(uploaded_file, decimal=',', skiprows=[1], encoding='cp1250')
 
     # Pretvori cijene iz stringa u float
     for col in df.columns[2:]:
