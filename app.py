@@ -30,9 +30,15 @@ BRICK_H = 19
 CW = BRICK_W + fuga
 CH = BRICK_H + fuga
 
-# Broj cigli
+# Broj cigli koje stanu cijele
 bw = int(sirina // CW)
 bh = int(visina // CH)
+
+# ➤ DODANO: prikaz broja opeka
+ukupno = bw * bh
+st.write(f"**Broj opeka u širinu:** {bw}")
+st.write(f"**Broj opeka u visinu:** {bh}")
+st.write(f"**Ukupan broj opeka:** {ukupno}")
 
 fig, ax = plt.subplots(figsize=(12, 8))
 
