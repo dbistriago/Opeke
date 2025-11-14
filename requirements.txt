@@ -1,3 +1,6 @@
 streamlit
 matplotlib
 pandas
+matplotlib.pyplot
+math
+numpy
