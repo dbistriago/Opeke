@@ -1,135 +1,83 @@
-import streamlit as st
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
 import pandas as pd
+import streamlit as st
+import numpy as np
+import matplotlib.pyplot as plt
+import math
 
-st.title("🧱 Nacrt zida od opeka 19×19 cm")
+# --- Učitavanje CSV ---
+df = pd.read_csv("opeke.csv", index_col=0, decimal=',')
+st.write("Tablica opeka i cijena:")
+st.dataframe(df)
 
-# --- Unosi zida ---
-sirina = st.number_input("Širina zida (cm)", min_value=20.0, value=190.0)
-visina = st.number_input("Visina zida (cm)", min_value=20.0, value=240.0)
-fuga = st.number_input("Debljina fuge (cm)", min_value=0.0, value=1.0)
-boja = st.color_picker("Boja opeke", "#D35400")
+# --- Pretvorba cijena u float ---
+df_float = df.copy()
+for col in df.columns:
+    if col != 'opeka':
+        df_float[col] = df[col].astype(str).str.replace('€','').str.replace(',','.').astype(float)
 
-# --- Otvori ---
-st.subheader("Otvori (opcionalno)")
-broj_otvora = st.number_input("Broj otvora", min_value=0, max_value=10, value=0)
-otvori = []
-for i in range(broj_otvora):
-    st.markdown(f"### Otvor {i+1}")
-    w = st.number_input(f"Širina {i+1}. otvora (cm)", value=80.0, key=f"w{i}")
-    h = st.number_input(f"Visina {i+1}. otvora (cm)", value=120.0, key=f"h{i}")
-    x = st.number_input(f"Pozicija od lijevog ruba {i+1}. otvora (cm)", value=10.0, key=f"x{i}")
-    y = st.number_input(f"Pozicija od vrha {i+1}. otvora (cm)", value=10.0, key=f"y{i}")
-    otvori.append((x, y, w, h))
+# --- Unos dimenzija otvora ---
+širina_otvora = st.number_input("Širina otvora (m)", min_value=0.0)
+visina_otvora = st.number_input("Visina otvora (m)", min_value=0.0)
 
-# --- Dimenzije cigle ---
-BRICK_W = 19
-BRICK_H = 19
+if st.button("Izračunaj opeke i prikaži tablicu"):
 
-# --- Zid s fugama ---
-CW = BRICK_W + fuga
-CH = BRICK_H + fuga
-bw = int(sirina // CW)
-bh = int(visina // CH)
-
-ukupno = bw * bh
-st.write(f"**Broj opeka u širinu:** {bw}")
-st.write(f"**Broj opeka u visinu:** {bh}")
-st.write(f"**Ukupan broj opeka:** {ukupno}")
-
-# --- Crtanje zida ---
-fig, ax = plt.subplots(figsize=(12, 8))
-
-for j in range(bh):
-    pomak = 0
-    for i in range(bw):
-        x = i * CW + pomak
-        y = j * CH
-        skip = False
-        for (ox, oy, ow, oh) in otvori:
-            if ox <= x <= ox + ow and oy <= y <= oy + oh:
-                skip = True
-                break
-        if skip:
-            continue
-
-        rect = patches.Rectangle((x, y), BRICK_W, BRICK_H,
-                                 edgecolor='black', facecolor=boja)
+    # Pretvaranje indeksa i kolona u float
+    dostupne_visine = np.array([float(i) for i in df_float.index])
+    dostupne_širine = np.array([float(c) for c in df_float.columns if c != 'opeka'])
+    
+    # --- Broj opeka po visini i širini ---
+    visina_opeka = max([v for v in dostupne_visine if v <= visina_otvora], dostupne_visine.min())
+    širina_opeka = max([s for s in dostupne_širine if s <= širina_otvora], dostupne_širine.min())
+    
+    red = df_float.loc[str(visina_opeka)]
+    broj_opeka_visina = math.ceil(visina_otvora / visina_opeka * red['opeka'])
+    
+    # Interpolacija cijene po širini
+    š1 = max([s for s in dostupne_širine if s <= širina_otvora])
+    š2 = min([s for s in dostupne_širine if s >= širina_otvora])
+    
+    cijena1 = red[str(š1)]
+    cijena2 = red[str(š2)]
+    t = (širina_otvora - š1) / max(š2 - š1, 1e-6)
+    cijena_interp = (1-t)*cijena1 + t*cijena2
+    
+    # Broj opeka po širini
+    broj_opeka_širina = math.ceil(širina_otvora / širina_opeka)
+    
+    # --- Kreiranje tablice opeka ---
+    tablica_opeka = []
+    redni_broj = 1
+    for i in range(broj_opeka_visina):
+        for j in range(broj_opeka_širina):
+            tablica_opeka.append({
+                "Redni broj": redni_broj,
+                "Red": i+1,
+                "Kolona": j+1,
+                "Širina (m)": širina_opeka,
+                "Visina (m)": visina_opeka,
+                "Cijena (€)": cijena_interp / broj_opeka_širina
+            })
+            redni_broj += 1
+    
+    df_opeka = pd.DataFrame(tablica_opeka)
+    st.write("Tablica svih opeka za otvor:")
+    st.dataframe(df_opeka)
+    
+    # --- Vizualizacija ---
+    fig, ax = plt.subplots(figsize=(6,6))
+    for index, row in df_opeka.iterrows():
+        rect = plt.Rectangle(((row["Kolona"]-1)*row["Širina (m)"], (row["Red"]-1)*row["Visina (m)"]),
+                             row["Širina (m)"], row["Visina (m)"],
+                             edgecolor='brown', facecolor='orange', linewidth=1)
         ax.add_patch(rect)
-
-# --- Crtanje otvora ---
-for (ox, oy, ow, oh) in otvori:
-    rect = patches.Rectangle((ox, oy), ow, oh,
-                             edgecolor='blue', facecolor='none', linewidth=2)
-    ax.add_patch(rect)
-    ax.text(ox + ow/2, oy + oh/2, "OTVOR", ha='center', va='center', color='blue')
-
-# --- Tehničke kote ---
-ax.annotate(f"{sirina} cm", xy=(0, -5), xytext=(sirina/2, -20),
-            ha='center', arrowprops=dict(arrowstyle='<->'))
-ax.annotate(f"{visina} cm", xy=(-5, 0), xytext=(-20, visina/2),
-            va='center', rotation=90, arrowprops=dict(arrowstyle='<->'))
-
-ax.set_xlim(0, sirina)
-ax.set_ylim(0, visina)
-ax.invert_yaxis()
-ax.set_aspect('equal')
-plt.tight_layout()
-st.pyplot(fig)
-
-# --- Spremanje slike ---
-plt.savefig("zid.png", dpi=300)
-plt.savefig("zid.pdf")
-st.success("Slika spremljena kao 'zid.png' i 'zid.pdf'.")
-st.download_button("⬇️ Preuzmi PNG", open("zid.png", "rb"), "zid.png")
-st.download_button("⬇️ Preuzmi PDF", open("zid.pdf", "rb"), "zid.pdf")
-
-# --- Učitavanje opeke.csv (cijene po dimenzijama) ---
-st.subheader("Izračun cijene zida i otvora")
-uploaded_price_file = st.file_uploader("Odaberite 'opeke.csv' s cijenama", type="csv", key="price_csv")
-
-if uploaded_price_file is not None:
-    try:
-        df_price = pd.read_csv(uploaded_price_file, index_col=0, decimal=',', encoding='utf-8')
-    except UnicodeDecodeError:
-        df_price = pd.read_csv(uploaded_price_file, index_col=0, decimal=',', encoding='latin1')
-
-    st.write("Učitana tablica cijena:")
-    st.dataframe(df_price)
-
-    # --- Cijena otvora ---
-    total_price_otvori = 0.0
-    for i, (ox, oy, ow, oh) in enumerate(otvori):
-        sirine = df_price.columns.astype(float)
-        visine = df_price.index.astype(float)
-
-        otvor_sirina_m = ow / 100
-        otvor_visina_m = oh / 100
-
-        najbliza_sirina = sirine.iloc[(sirine - otvor_sirina_m).abs().argmin()]
-        najbliza_visina = visine.iloc[(visine - otvor_visina_m).abs().argmin()]
-
-        cijena_otvor = df_price.loc[najbliza_visina, najbliza_sirina]
-        cijena_otvor_float = float(str(cijena_otvor).replace('€','').replace(',','.'))
-        total_price_otvori += cijena_otvor_float
-
-        st.write(f"Otvor {i+1}: {ow}×{oh} cm → cijena ≈ {cijena_otvor} €")
-
-    st.success(f"**Ukupna cijena svih otvora:** {total_price_otvori:.2f} €")
-
-    # --- Cijena cijelog zida ---
-    sirina_m = sirina / 100
-    visina_m = visina / 100
-    sirine = df_price.columns.astype(float)
-    visine = df_price.index.astype(float)
-
-    najbliza_sirina_zid = sirine.iloc[(sirine - sirina_m).abs().argmin()]
-    najbliza_visina_zid = visine.iloc[(visine - visina_m).abs().argmin()]
-
-    cijena_zid = df_price.loc[najbliza_visina_zid, najbliza_sirina_zid]
-    cijena_zid_float = float(str(cijena_zid).replace('€','').replace(',','.'))
-
-    # --- Realna cijena zida (cijeli zid minus otvori) ---
-    realna_cijena_zida = max(cijena_zid_float - total_price_otvori, 0)
-    st.success(f"**Realna cijena zida (minus otvori):** {realna_cijena_zida:.2f} €")
+    ax.set_xlim(0, širina_otvora)
+    ax.set_ylim(0, visina_otvora)
+    ax.set_aspect('equal')
+    ax.set_xlabel("Širina (m)")
+    ax.set_ylabel("Visina (m)")
+    ax.set_title("Vizualizacija otvora s opekom")
+    st.pyplot(fig)
+    
+    # --- Rezultati ---
+    st.write(f"Ukupno opeka: {broj_opeka_visina * broj_opeka_širina}")
+    st.write(f"Ukupna cijena otvora: {cijena_interp:.2f} €")
