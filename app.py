@@ -9,7 +9,13 @@ st.title("Kalkulator opeka i cijene")
 # --- File uploader ---
 uploaded_file = st.file_uploader("Učitaj CSV datoteku", type=["csv"])
 if uploaded_file is not None:
-    df = pd.read_csv(uploaded_file, index_col=0, decimal=',')
+    # Pokušaj čitanja UTF-8, ako ne ide, cp1250
+    try:
+        df = pd.read_csv(uploaded_file, index_col=0, decimal=',')
+    except UnicodeDecodeError:
+        uploaded_file.seek(0)
+        df = pd.read_csv(uploaded_file, index_col=0, decimal=',', encoding='cp1250')
+
     st.write("Učitana tablica:")
     st.dataframe(df)
 
